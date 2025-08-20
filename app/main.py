@@ -2,8 +2,9 @@ from pathlib import Path
 
 import os
 
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 import markdown
@@ -12,6 +13,7 @@ from nbconvert import HTMLExporter
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="change-me")
+app.mount("/files", StaticFiles(directory="posts"), name="files")
 
 templates = Jinja2Templates(directory="app/templates")
 POSTS_DIR = Path("posts")
@@ -35,7 +37,11 @@ def render_markdown(content: str) -> tuple[str, str]:
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    posts = [p.name for p in POSTS_DIR.iterdir() if p.is_file()]
+    posts = [
+        p.name
+        for p in POSTS_DIR.iterdir()
+        if p.is_file() and p.suffix in (".md", ".ipynb")
+    ]
     return templates.TemplateResponse("index.html", {"request": request, "posts": posts})
 
 
@@ -91,12 +97,26 @@ async def admin_upload(request: Request):
     return templates.TemplateResponse("admin_upload.html", {"request": request})
 
 
+@app.post("/admin/upload")
+async def admin_upload_post(
+    request: Request, file: UploadFile = File(...)
+):
+    if not request.session.get("user"):
+        return RedirectResponse(url="/admin/login", status_code=302)
+    dest = POSTS_DIR / file.filename
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(await file.read())
+    return RedirectResponse(url="/admin/posts", status_code=302)
+
+
 @app.get("/admin/posts", response_class=HTMLResponse)
 async def admin_posts(request: Request):
     if not request.session.get("user"):
         return RedirectResponse(url="/admin/login", status_code=302)
     drafts = [p.name for p in DRAFTS_DIR.glob("*.md")] if DRAFTS_DIR.exists() else []
-    published = [p.name for p in POSTS_DIR.glob("*.md")]
+    published = [
+        p.name for p in POSTS_DIR.glob("*.md")
+    ] + [p.name for p in POSTS_DIR.glob("*.ipynb")]
     return templates.TemplateResponse(
         "admin_posts.html",
         {"request": request, "drafts": drafts, "published": published},
