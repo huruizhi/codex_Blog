@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Versions for {{ name }}</h1>
+<ul>
+{% for v in versions %}
+  <li>{{ v }} - <a href="/admin/posts/versions/{{ status }}/{{ name }}/{{ v }}">View</a>
+      <form method="post" action="/admin/posts/versions/{{ status }}/{{ name }}/{{ v }}/restore" style="display:inline;">
+          <button type="submit">Restore</button>
+      </form>
+  </li>
+{% else %}
+  <li>No versions</li>
+{% endfor %}
+</ul>
+<p><a href="/admin/posts">Back</a></p>
+{% endblock %}
