@@ -1,16 +1,23 @@
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+import os
+
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 import markdown
 import nbformat
 from nbconvert import HTMLExporter
 
 app = FastAPI()
+app.add_middleware(SessionMiddleware, secret_key="change-me")
 
 templates = Jinja2Templates(directory="app/templates")
 POSTS_DIR = Path("posts")
+
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "password")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -46,6 +53,26 @@ async def admin_login(request: Request):
     return templates.TemplateResponse("admin_login.html", {"request": request})
 
 
+@app.post("/admin/login")
+async def admin_login_post(request: Request, username: str = Form(...), password: str = Form(...)):
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        request.session["user"] = username
+        return RedirectResponse(url="/admin/upload", status_code=302)
+    return templates.TemplateResponse(
+        "admin_login.html",
+        {"request": request, "error": "Invalid credentials"},
+        status_code=401,
+    )
+
+
+@app.get("/admin/logout")
+async def admin_logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/")
+
+
 @app.get("/admin/upload", response_class=HTMLResponse)
 async def admin_upload(request: Request):
+    if not request.session.get("user"):
+        return RedirectResponse(url="/admin/login", status_code=302)
     return templates.TemplateResponse("admin_upload.html", {"request": request})

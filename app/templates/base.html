@@ -57,8 +57,12 @@
 <body>
     <nav>
         <a href="/">Home</a>
-        <a href="/admin/login">Login</a>
+        {% if request.session.get('user') %}
         <a href="/admin/upload">Upload</a>
+        <a href="/admin/logout">Logout</a>
+        {% else %}
+        <a href="/admin/login">Login</a>
+        {% endif %}
         <button id="theme-toggle" type="button">Toggle Theme</button>
     </nav>
     <hr>
