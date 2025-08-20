@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Tags</h1>
+<ul>
+{% for tag, posts in tags.items() %}
+  <li><a href="/tags/{{ tag }}">{{ tag }}</a> ({{ posts|length }})</li>
+{% else %}
+  <li>No tags found.</li>
+{% endfor %}
+</ul>
+{% endblock %}
+

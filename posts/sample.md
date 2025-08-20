@@ -1,3 +1,6 @@
+tags: demo, sample
+category: examples
+
 # Sample Post
 
 A more complex markdown file to showcase blog features.

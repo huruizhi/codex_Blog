@@ -111,6 +111,48 @@ async def read_post(name: str, request: Request):
     )
 
 
+@app.get("/tags", response_class=HTMLResponse)
+async def tags_index(request: Request):
+    tag_map: dict[str, list[str]] = {}
+    for path in POSTS_DIR.glob("*.md"):
+        raw = path.read_text(encoding="utf-8")
+        _, tags, _ = parse_metadata(raw)
+        for t in tags:
+            tag_map.setdefault(t, []).append(path.name)
+    return templates.TemplateResponse("tags.html", {"request": request, "tags": tag_map})
+
+
+@app.get("/tags/{tag}", response_class=HTMLResponse)
+async def tag_archive(tag: str, request: Request):
+    posts: list[str] = []
+    for path in POSTS_DIR.glob("*.md"):
+        raw = path.read_text(encoding="utf-8")
+        _, tags, _ = parse_metadata(raw)
+        if tag in tags:
+            posts.append(path.name)
+    return templates.TemplateResponse("tag.html", {"request": request, "tag": tag, "posts": posts})
+
+
+@app.get("/search", response_class=HTMLResponse)
+async def search(request: Request, q: str = ""):
+    results: list[str] = []
+    if q:
+        query = q.lower()
+        for path in POSTS_DIR.glob("*.md"):
+            if query in path.read_text(encoding="utf-8").lower():
+                results.append(path.name)
+        for path in POSTS_DIR.glob("*.ipynb"):
+            nb = nbformat.read(path, as_version=4)
+            text = "".join(
+                cell.source for cell in nb.cells if getattr(cell, "cell_type", "") == "markdown"
+            )
+            if query in text.lower():
+                results.append(path.name)
+    return templates.TemplateResponse(
+        "search.html", {"request": request, "query": q, "results": results}
+    )
+
+
 @app.get("/admin/login", response_class=HTMLResponse)
 async def admin_login(request: Request):
     return templates.TemplateResponse("admin_login.html", {"request": request})
