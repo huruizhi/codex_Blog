@@ -4,22 +4,24 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ title if title else "Blog" }}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/default.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code&family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/dracula.min.css">
     <link rel="alternate" type="application/rss+xml" title="RSS" href="/rss.xml">
     <link rel="alternate" type="application/atom+xml" title="Atom" href="/atom.xml">
     <style>
         :root {
-            --bg-color: #ffffff;
-            --text-color: #000000;
-            --link-color: #1a0dab;
-            --nav-bg: #f2f2f2;
+            --bg-color: #121212;
+            --text-color: #e4e4e4;
+            --accent-color: #ff9800;
+            --link-color: #64b5f6;
+            --nav-bg: #1f1f1f;
         }
 
         body {
             margin: 0;
             background: var(--bg-color);
             color: var(--text-color);
-            font-family: Arial, sans-serif;
+            font-family: 'Inter', sans-serif;
         }
 
         nav {
@@ -40,11 +42,39 @@
             padding: 0.25rem 0.5rem;
         }
 
-        body.dark {
-            --bg-color: #121212;
-            --text-color: #e4e4e4;
-            --link-color: #8ab4f8;
-            --nav-bg: #1f1f1f;
+        nav a:hover,
+        nav button:hover {
+            color: var(--accent-color);
+        }
+
+        a {
+            color: var(--link-color);
+        }
+
+        a:hover {
+            color: var(--accent-color);
+        }
+
+        code,
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+
+        body.light {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --accent-color: #6200ee;
+            --link-color: #1a0dab;
+            --nav-bg: #f2f2f2;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            max-width: 800px;
+            margin: auto;
+            padding: 1rem;
+            gap: 1rem;
         }
 
         @media (max-width: 600px) {
@@ -75,18 +105,20 @@
         <button id="theme-toggle" type="button">Toggle Theme</button>
     </nav>
     <hr>
-    {% block content %}{% endblock %}
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
     <script>
         hljs.highlightAll();
         const toggle = document.getElementById('theme-toggle');
         const saved = localStorage.getItem('theme');
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (saved === 'dark' || (!saved && prefersDark)) {
-            document.body.classList.add('dark');
+        const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+        if (saved === 'light' || (!saved && prefersLight)) {
+            document.body.classList.add('light');
         }
         toggle.addEventListener('click', () => {
-            document.body.classList.toggle('dark');
-            localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+            document.body.classList.toggle('light');
+            localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
         });
     </script>
 </body>
