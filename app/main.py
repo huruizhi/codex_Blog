@@ -27,15 +27,18 @@ async def read_post(name: str, request: Request):
 
     if file_path.suffix == ".md":
         content = file_path.read_text(encoding="utf-8")
-        body = markdown.markdown(content)
+        md = markdown.Markdown(extensions=["fenced_code", "codehilite", "toc"])
+        body = md.convert(content)
+        toc = md.toc
     elif file_path.suffix == ".ipynb":
         nb = nbformat.read(file_path, as_version=4)
         html_exporter = HTMLExporter()
         body, _ = html_exporter.from_notebook_node(nb)
+        toc = ""
     else:
         raise HTTPException(status_code=400, detail="Unsupported file type")
 
-    return templates.TemplateResponse("post.html", {"request": request, "content": body})
+    return templates.TemplateResponse("post.html", {"request": request, "content": body, "toc": toc})
 
 
 @app.get("/admin/login", response_class=HTMLResponse)
