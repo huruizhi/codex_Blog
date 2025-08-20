@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Preview: {{ title }}</h1>
+<div>{{ content | safe }}</div>
+<p><a href="javascript:history.back()">Back</a></p>
+{% endblock %}

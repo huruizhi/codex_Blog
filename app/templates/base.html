@@ -59,6 +59,7 @@
         <a href="/">Home</a>
         {% if request.session.get('user') %}
         <a href="/admin/upload">Upload</a>
+        <a href="/admin/posts">Posts</a>
         <a href="/admin/logout">Logout</a>
         {% else %}
         <a href="/admin/login">Login</a>
