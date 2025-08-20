@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ title if title else "Blog" }}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/default.min.css">
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="/rss.xml">
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="/atom.xml">
     <style>
         :root {
             --bg-color: #ffffff;
@@ -57,6 +59,8 @@
 <body>
     <nav>
         <a href="/">Home</a>
+        <a href="/tags">Tags</a>
+        <a href="/rss.xml">RSS</a>
         {% if request.session.get('user') %}
         <a href="/admin/upload">Upload</a>
         <a href="/admin/posts">Posts</a>
@@ -64,6 +68,10 @@
         {% else %}
         <a href="/admin/login">Login</a>
         {% endif %}
+        <form action="/search" method="get" style="margin-left:auto;">
+            <input type="text" name="q" placeholder="Search">
+            <button type="submit">Go</button>
+        </form>
         <button id="theme-toggle" type="button">Toggle Theme</button>
     </nav>
     <hr>

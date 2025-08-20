@@ -2,7 +2,13 @@
 {% block content %}
 <div class="toc">{{ toc|safe }}</div>
 {% if category %}<p>Category: {{ category }}</p>{% endif %}
-{% if tags %}<p>Tags: {{ tags | join(', ') }}</p>{% endif %}
+{% if tags %}
+<p>Tags:
+{% for tag in tags %}
+    <a href="/tags/{{ tag }}">{{ tag }}</a>{% if not loop.last %}, {% endif %}
+{% endfor %}
+</p>
+{% endif %}
 <div class="post-body">{{ content|safe }}</div>
 <script>
 document.addEventListener("DOMContentLoaded", function() {

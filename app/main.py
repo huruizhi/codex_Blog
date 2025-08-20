@@ -4,7 +4,12 @@ from datetime import datetime
 import os
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import (
+    HTMLResponse,
+    RedirectResponse,
+    PlainTextResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -53,6 +58,38 @@ def parse_metadata(content: str) -> tuple[str, list[str], str]:
     if lines and lines[0] == "":
         lines.pop(0)
     return "\n".join(lines), tags, category
+
+
+def extract_title(path: Path) -> str:
+    """Derive a human-readable title from a post file."""
+    if path.suffix == ".md":
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("#"):
+                return line.lstrip("#").strip()
+    elif path.suffix == ".ipynb":
+        nb = nbformat.read(path, as_version=4)
+        for cell in nb.cells:
+            if cell.get("cell_type") == "markdown":
+                for line in cell.get("source", "").splitlines():
+                    if line.startswith("#"):
+                        return line.lstrip("#").strip()
+    return path.stem.replace("-", " ").title()
+
+
+def list_posts() -> list[dict[str, object]]:
+    """Return metadata for all published posts."""
+    posts: list[dict[str, object]] = []
+    for path in POSTS_DIR.iterdir():
+        if path.is_file() and path.suffix in (".md", ".ipynb"):
+            posts.append(
+                {
+                    "name": path.name,
+                    "title": extract_title(path),
+                    "updated": datetime.utcfromtimestamp(path.stat().st_mtime),
+                }
+            )
+    posts.sort(key=lambda p: p["updated"], reverse=True)
+    return posts
 
 
 def save_version(status: str, name: str, content: str) -> None:
@@ -110,6 +147,139 @@ async def read_post(name: str, request: Request):
         },
     )
 
+
+@app.get("/tags", response_class=HTMLResponse)
+async def tags_index(request: Request):
+    tag_map: dict[str, list[str]] = {}
+    for path in POSTS_DIR.glob("*.md"):
+        raw = path.read_text(encoding="utf-8")
+        _, tags, _ = parse_metadata(raw)
+        for t in tags:
+            tag_map.setdefault(t, []).append(path.name)
+    return templates.TemplateResponse("tags.html", {"request": request, "tags": tag_map})
+
+
+@app.get("/tags/{tag}", response_class=HTMLResponse)
+async def tag_archive(tag: str, request: Request):
+    posts: list[str] = []
+    for path in POSTS_DIR.glob("*.md"):
+        raw = path.read_text(encoding="utf-8")
+        _, tags, _ = parse_metadata(raw)
+        if tag in tags:
+            posts.append(path.name)
+    return templates.TemplateResponse("tag.html", {"request": request, "tag": tag, "posts": posts})
+
+
+@app.get("/search", response_class=HTMLResponse)
+async def search(request: Request, q: str = ""):
+    results: list[str] = []
+    if q:
+        query = q.lower()
+        for path in POSTS_DIR.glob("*.md"):
+            if query in path.read_text(encoding="utf-8").lower():
+                results.append(path.name)
+        for path in POSTS_DIR.glob("*.ipynb"):
+            nb = nbformat.read(path, as_version=4)
+            text = "".join(
+                cell.source for cell in nb.cells if getattr(cell, "cell_type", "") == "markdown"
+            )
+            if query in text.lower():
+                results.append(path.name)
+    return templates.TemplateResponse(
+        "search.html", {"request": request, "query": q, "results": results}
+    )
+
+
+@app.get("/rss.xml")
+async def rss_feed(request: Request):
+    posts = list_posts()
+    base = str(request.base_url).rstrip("/")
+    items = []
+    for p in posts:
+        items.append(
+            """
+        <item>
+            <title>{title}</title>
+            <link>{base}/post/{name}</link>
+            <guid>{base}/post/{name}</guid>
+            <pubDate>{date}</pubDate>
+        </item>""".format(
+                title=p["title"],
+                base=base,
+                name=p["name"],
+                date=p["updated"].strftime("%a, %d %b %Y %H:%M:%S +0000"),
+            )
+        )
+    feed = (
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "<rss version=\"2.0\"><channel>"
+        f"<title>Blog</title><link>{base}/</link><description>RSS Feed</description>"
+        + "".join(items)
+        + "</channel></rss>"
+    )
+    return Response(content=feed, media_type="application/xml")
+
+
+@app.get("/atom.xml")
+async def atom_feed(request: Request):
+    posts = list_posts()
+    base = str(request.base_url).rstrip("/")
+    updated = posts[0]["updated"] if posts else datetime.utcnow()
+    entries = []
+    for p in posts:
+        entries.append(
+            """
+        <entry>
+            <title>{title}</title>
+            <link href="{base}/post/{name}"/>
+            <id>{base}/post/{name}</id>
+            <updated>{updated}</updated>
+        </entry>""".format(
+                title=p["title"],
+                base=base,
+                name=p["name"],
+                updated=p["updated"].isoformat() + "Z",
+            )
+        )
+    feed = (
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+        "<feed xmlns=\"http://www.w3.org/2005/Atom\">"
+        f"<title>Blog</title><link href=\"{base}/\"/><id>{base}/</id><updated>"
+        + updated.isoformat()
+        + "Z</updated>"
+        + "".join(entries)
+        + "</feed>"
+    )
+    return Response(content=feed, media_type="application/xml")
+
+
+@app.get("/sitemap.xml")
+async def sitemap(request: Request):
+    posts = list_posts()
+    base = str(request.base_url).rstrip("/")
+    urls = [
+        f"<url><loc>{base}/</loc></url>",
+        f"<url><loc>{base}/tags</loc></url>",
+    ]
+    for p in posts:
+        urls.append(
+            f"<url><loc>{base}/post/{p['name']}</loc><lastmod>{p['updated'].date().isoformat()}</lastmod></url>"
+        )
+    xml = (
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"
+        + "".join(urls)
+        + "</urlset>"
+    )
+    return Response(content=xml, media_type="application/xml")
+
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+async def robots(request: Request):
+    base = str(request.base_url).rstrip("/")
+    return PlainTextResponse(
+        f"User-agent: *\nAllow: /\nSitemap: {base}/sitemap.xml\n"
+    )
 
 @app.get("/admin/login", response_class=HTMLResponse)
 async def admin_login(request: Request):

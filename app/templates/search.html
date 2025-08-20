@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Search Results for "{{ query }}"</h1>
+<ul>
+{% for post in results %}
+  <li><a href="/post/{{ post }}">{{ post }}</a></li>
+{% else %}
+  <li>No results found.</li>
+{% endfor %}
+</ul>
+{% endblock %}
+
