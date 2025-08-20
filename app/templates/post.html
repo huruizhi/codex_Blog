@@ -11,26 +11,7 @@
 {% endif %}
 <div class="post-body">{{ content|safe }}</div>
 <script>
-document.addEventListener("DOMContentLoaded", function() {
-  hljs.highlightAll();
-
-  document.querySelectorAll('pre').forEach(function(pre) {
-    var button = document.createElement('button');
-    button.innerText = 'Copy';
-    button.className = 'copy-button';
-    pre.style.position = 'relative';
-    button.style.position = 'absolute';
-    button.style.top = '4px';
-    button.style.right = '4px';
-    button.addEventListener('click', function() {
-      navigator.clipboard.writeText(pre.innerText).then(function() {
-        button.innerText = 'Copied!';
-        setTimeout(function() { button.innerText = 'Copy'; }, 2000);
-      });
-    });
-    pre.appendChild(button);
-  });
-
+document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.post-body h1, .post-body h2, .post-body h3, .post-body h4, .post-body h5, .post-body h6').forEach(function(h) {
     if (h.id) {
       var anchor = document.createElement('a');
@@ -43,10 +24,6 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script>
 <style>
-.copy-button {
-    font-size: 0.8em;
-    padding: 2px 6px;
-}
 .anchor-link {
     margin-left: 0.5em;
     text-decoration: none;
