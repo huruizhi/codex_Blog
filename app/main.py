@@ -76,6 +76,29 @@ def extract_title(path: Path) -> str:
     return path.stem.replace("-", " ").title()
 
 
+def extract_preview(path: Path, length: int = 120) -> str:
+    """Extract a plain-text preview from a post file."""
+    text = ""
+    if path.suffix == ".md":
+        raw = path.read_text(encoding="utf-8")
+        content, _, _ = parse_metadata(raw)
+        lines = [l for l in content.splitlines() if not l.startswith("#")]
+        text = " ".join(lines)
+    elif path.suffix == ".ipynb":
+        nb = nbformat.read(path, as_version=4)
+        parts: list[str] = []
+        for cell in nb.cells:
+            if cell.get("cell_type") == "markdown":
+                for line in cell.get("source", "").splitlines():
+                    if not line.startswith("#"):
+                        parts.append(line)
+                if parts:
+                    break
+        text = " ".join(parts)
+    preview = " ".join(text.split())
+    return preview[:length].rstrip() + ("..." if len(preview) > length else "")
+
+
 def list_posts() -> list[dict[str, object]]:
     """Return metadata for all published posts."""
     posts: list[dict[str, object]] = []
@@ -86,6 +109,7 @@ def list_posts() -> list[dict[str, object]]:
                     "name": path.name,
                     "title": extract_title(path),
                     "updated": datetime.utcfromtimestamp(path.stat().st_mtime),
+                    "preview": extract_preview(path),
                 }
             )
     posts.sort(key=lambda p: p["updated"], reverse=True)
@@ -108,11 +132,7 @@ def save_version(status: str, name: str, content: str) -> None:
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    posts = [
-        p.name
-        for p in POSTS_DIR.iterdir()
-        if p.is_file() and p.suffix in (".md", ".ipynb")
-    ]
+    posts = list_posts()
     return templates.TemplateResponse("index.html", {"request": request, "posts": posts})
 
 
@@ -161,30 +181,50 @@ async def tags_index(request: Request):
 
 @app.get("/tags/{tag}", response_class=HTMLResponse)
 async def tag_archive(tag: str, request: Request):
-    posts: list[str] = []
+    posts: list[dict[str, str]] = []
     for path in POSTS_DIR.glob("*.md"):
         raw = path.read_text(encoding="utf-8")
         _, tags, _ = parse_metadata(raw)
         if tag in tags:
-            posts.append(path.name)
-    return templates.TemplateResponse("tag.html", {"request": request, "tag": tag, "posts": posts})
+            posts.append(
+                {
+                    "name": path.name,
+                    "title": extract_title(path),
+                    "preview": extract_preview(path),
+                }
+            )
+    return templates.TemplateResponse(
+        "tag.html", {"request": request, "tag": tag, "posts": posts}
+    )
 
 
 @app.get("/search", response_class=HTMLResponse)
 async def search(request: Request, q: str = ""):
-    results: list[str] = []
+    results: list[dict[str, str]] = []
     if q:
         query = q.lower()
         for path in POSTS_DIR.glob("*.md"):
             if query in path.read_text(encoding="utf-8").lower():
-                results.append(path.name)
+                results.append(
+                    {
+                        "name": path.name,
+                        "title": extract_title(path),
+                        "preview": extract_preview(path),
+                    }
+                )
         for path in POSTS_DIR.glob("*.ipynb"):
             nb = nbformat.read(path, as_version=4)
             text = "".join(
                 cell.source for cell in nb.cells if getattr(cell, "cell_type", "") == "markdown"
             )
             if query in text.lower():
-                results.append(path.name)
+                results.append(
+                    {
+                        "name": path.name,
+                        "title": extract_title(path),
+                        "preview": extract_preview(path),
+                    }
+                )
     return templates.TemplateResponse(
         "search.html", {"request": request, "query": q, "results": results}
     )
