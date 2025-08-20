@@ -4,3 +4,5 @@ markdown
 nbformat
 nbconvert
 jinja2
+python-multipart
+itsdangerous

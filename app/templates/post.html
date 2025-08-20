@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="toc">{{ toc|safe }}</div>
+{% if category %}<p>Category: {{ category }}</p>{% endif %}
+{% if tags %}<p>Tags: {{ tags | join(', ') }}</p>{% endif %}
 <div class="post-body">{{ content|safe }}</div>
 <script>
 document.addEventListener("DOMContentLoaded", function() {

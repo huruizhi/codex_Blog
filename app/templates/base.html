@@ -2,17 +2,84 @@
 <html>
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ title if title else "Blog" }}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/default.min.css">
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --link-color: #1a0dab;
+            --nav-bg: #f2f2f2;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg-color);
+            color: var(--text-color);
+            font-family: Arial, sans-serif;
+        }
+
+        nav {
+            background: var(--nav-bg);
+            padding: 0.5rem 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        nav a,
+        nav button {
+            color: var(--link-color);
+            text-decoration: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+        }
+
+        body.dark {
+            --bg-color: #121212;
+            --text-color: #e4e4e4;
+            --link-color: #8ab4f8;
+            --nav-bg: #1f1f1f;
+        }
+
+        @media (max-width: 600px) {
+            nav {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
 </head>
 <body>
     <nav>
-        <a href="/">Home</a> |
-        <a href="/admin/login">Login</a> |
+        <a href="/">Home</a>
+        {% if request.session.get('user') %}
         <a href="/admin/upload">Upload</a>
+        <a href="/admin/posts">Posts</a>
+        <a href="/admin/logout">Logout</a>
+        {% else %}
+        <a href="/admin/login">Login</a>
+        {% endif %}
+        <button id="theme-toggle" type="button">Toggle Theme</button>
     </nav>
     <hr>
     {% block content %}{% endblock %}
+    <script>
+        hljs.highlightAll();
+        const toggle = document.getElementById('theme-toggle');
+        const saved = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (saved === 'dark' || (!saved && prefersDark)) {
+            document.body.classList.add('dark');
+        }
+        toggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark');
+            localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+        });
+    </script>
 </body>
 </html>
