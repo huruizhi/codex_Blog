@@ -3,7 +3,10 @@
 <h1>Search Results for "{{ query }}"</h1>
 <ul>
 {% for post in results %}
-  <li><a href="/post/{{ post }}">{{ post }}</a></li>
+  <li>
+    <h2><a href="/post/{{ post.name }}">{{ post.title }}</a></h2>
+    <p>{{ post.preview }}</p>
+  </li>
 {% else %}
   <li>No results found.</li>
 {% endfor %}
