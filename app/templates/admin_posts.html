@@ -5,7 +5,7 @@
 <h2>Drafts</h2>
 <ul>
 {% for p in drafts %}
-  <li>{{ p.name }}{% if p.category %} [{{ p.category }}]{% endif %}{% if p.tags %} - Tags: {{ p.tags }}{% endif %} - <a href="/admin/posts/edit/draft/{{ p.name }}">Edit</a>
+  <li>{{ p.name }}{% if p.category %} [{{ p.category }}]{% endif %}{% if p.tags %} - Tags: {{ p.tags }}{% endif %} - <a href="/admin/posts/edit/draft/{{ p.name }}">Edit</a> - <a href="/admin/posts/versions/draft/{{ p.name }}">History</a>
       <form method="post" action="/admin/posts/delete/draft/{{ p.name }}" style="display:inline;">
           <button type="submit">Delete</button>
       </form>
@@ -17,7 +17,7 @@
 <h2>Published</h2>
 <ul>
 {% for p in published %}
-  <li>{{ p.name }}{% if p.category %} [{{ p.category }}]{% endif %}{% if p.tags %} - Tags: {{ p.tags }}{% endif %} - <a href="/admin/posts/edit/published/{{ p.name }}">Edit</a> - <a href="/post/{{ p.name }}" target="_blank">View</a>
+  <li>{{ p.name }}{% if p.category %} [{{ p.category }}]{% endif %}{% if p.tags %} - Tags: {{ p.tags }}{% endif %} - <a href="/admin/posts/edit/published/{{ p.name }}">Edit</a> - <a href="/admin/posts/versions/published/{{ p.name }}">History</a> - <a href="/post/{{ p.name }}" target="_blank">View</a>
       <form method="post" action="/admin/posts/delete/published/{{ p.name }}" style="display:inline;">
           <button type="submit">Delete</button>
       </form>

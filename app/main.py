@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime
 
 import os
 
@@ -18,6 +19,7 @@ app.mount("/files", StaticFiles(directory="posts"), name="files")
 templates = Jinja2Templates(directory="app/templates")
 POSTS_DIR = Path("posts")
 DRAFTS_DIR = POSTS_DIR / "drafts"
+VERSIONS_DIR = POSTS_DIR / "versions"
 
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "password")
@@ -51,6 +53,20 @@ def parse_metadata(content: str) -> tuple[str, list[str], str]:
     if lines and lines[0] == "":
         lines.pop(0)
     return "\n".join(lines), tags, category
+
+
+def save_version(status: str, name: str, content: str) -> None:
+    """Save a version of a post and keep only the latest three."""
+    slug = name.rsplit(".", 1)[0]
+    dir_path = VERSIONS_DIR / status / slug
+    dir_path.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    version_file = dir_path / f"{timestamp}.md"
+    version_file.write_text(content, encoding="utf-8")
+    versions = sorted(dir_path.glob("*.md"))
+    if len(versions) > 3:
+        for old in versions[:-3]:
+            old.unlink()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -200,9 +216,13 @@ async def admin_new_post_post(
     filename = f"{slugify(title)}.md"
     if action == "publish":
         path = POSTS_DIR / filename
+        version_status = "published"
     else:
         path = DRAFTS_DIR / filename
+        version_status = "draft"
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        save_version(version_status, filename, path.read_text(encoding="utf-8"))
     header = []
     if category:
         header.append(f"Category: {category}")
@@ -265,6 +285,9 @@ async def admin_edit_post_post(
                 "category": category,
             },
         )
+    old_path = (DRAFTS_DIR if status == "draft" else POSTS_DIR) / name
+    if old_path.exists():
+        save_version(status, name, old_path.read_text(encoding="utf-8"))
     new_filename = f"{slugify(title)}.md"
     if action == "publish":
         path = POSTS_DIR / new_filename
@@ -278,7 +301,6 @@ async def admin_edit_post_post(
         header.append(f"Tags: {tags}")
     full = "\n".join(header + ["", content]) if header else content
     path.write_text(full, encoding="utf-8")
-    old_path = (DRAFTS_DIR if status == "draft" else POSTS_DIR) / name
     if old_path != path and old_path.exists():
         old_path.unlink()
     return RedirectResponse(url="/admin/posts", status_code=302)
@@ -291,4 +313,62 @@ async def admin_delete_post(request: Request, status: str, name: str):
     path = (DRAFTS_DIR if status == "draft" else POSTS_DIR) / name
     if path.exists():
         path.unlink()
+    return RedirectResponse(url="/admin/posts", status_code=302)
+
+
+@app.get("/admin/posts/versions/{status}/{name}", response_class=HTMLResponse)
+async def admin_post_versions(request: Request, status: str, name: str):
+    if not request.session.get("user"):
+        return RedirectResponse(url="/admin/login", status_code=302)
+    slug = name.rsplit(".", 1)[0]
+    dir_path = VERSIONS_DIR / status / slug
+    versions = sorted(dir_path.glob("*.md"), reverse=True) if dir_path.exists() else []
+    return templates.TemplateResponse(
+        "admin_versions.html",
+        {
+            "request": request,
+            "name": name,
+            "status": status,
+            "versions": [v.name for v in versions],
+        },
+    )
+
+
+@app.get("/admin/posts/versions/{status}/{name}/{version}", response_class=HTMLResponse)
+async def admin_post_version_view(request: Request, status: str, name: str, version: str):
+    if not request.session.get("user"):
+        return RedirectResponse(url="/admin/login", status_code=302)
+    slug = name.rsplit(".", 1)[0]
+    path = VERSIONS_DIR / status / slug / version
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Version not found")
+    raw = path.read_text(encoding="utf-8")
+    content, tags, category = parse_metadata(raw)
+    body, _ = render_markdown(content)
+    return templates.TemplateResponse(
+        "admin_preview.html",
+        {
+            "request": request,
+            "title": slug.replace("-", " "),
+            "content": body,
+            "tags": tags,
+            "category": category,
+        },
+    )
+
+
+@app.post("/admin/posts/versions/{status}/{name}/{version}/restore")
+async def admin_post_version_restore(request: Request, status: str, name: str, version: str):
+    if not request.session.get("user"):
+        return RedirectResponse(url="/admin/login", status_code=302)
+    slug = name.rsplit(".", 1)[0]
+    version_path = VERSIONS_DIR / status / slug / version
+    if not version_path.exists():
+        raise HTTPException(status_code=404, detail="Version not found")
+    content = version_path.read_text(encoding="utf-8")
+    dest = (DRAFTS_DIR if status == "draft" else POSTS_DIR) / name
+    if dest.exists():
+        save_version(status, name, dest.read_text(encoding="utf-8"))
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(content, encoding="utf-8")
     return RedirectResponse(url="/admin/posts", status_code=302)
