@@ -3,6 +3,8 @@
 <h1>{{ 'New Post' if is_new else 'Edit Post' }}</h1>
 <form method="post">
     <input type="text" name="title" value="{{ title }}" placeholder="Title"><br>
+    <input type="text" name="category" value="{{ category }}" placeholder="Category"><br>
+    <input type="text" name="tags" value="{{ tags }}" placeholder="Tags (comma separated)"><br>
     <textarea name="content" rows="20" cols="80">{{ content }}</textarea><br>
     <button type="submit" name="action" value="preview">Preview</button>
     <button type="submit" name="action" value="draft">Save Draft</button>

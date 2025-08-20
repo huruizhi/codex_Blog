@@ -35,6 +35,24 @@ def render_markdown(content: str) -> tuple[str, str]:
     return body, md.toc
 
 
+def parse_metadata(content: str) -> tuple[str, list[str], str]:
+    """Extract tags and category metadata from the top of a markdown file."""
+    lines = content.splitlines()
+    tags: list[str] = []
+    category = ""
+    while lines:
+        lower = lines[0].lower()
+        if lower.startswith("tags:"):
+            tags = [t.strip() for t in lines.pop(0).split(":", 1)[1].split(",") if t.strip()]
+        elif lower.startswith("category:"):
+            category = lines.pop(0).split(":", 1)[1].strip()
+        else:
+            break
+    if lines and lines[0] == "":
+        lines.pop(0)
+    return "\n".join(lines), tags, category
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     posts = [
@@ -52,19 +70,29 @@ async def read_post(name: str, request: Request):
         raise HTTPException(status_code=404, detail="Post not found")
 
     if file_path.suffix == ".md":
-        content = file_path.read_text(encoding="utf-8")
-        md = markdown.Markdown(extensions=["fenced_code", "codehilite", "toc"])
-        body = md.convert(content)
-        toc = md.toc
+        raw = file_path.read_text(encoding="utf-8")
+        content, tags, category = parse_metadata(raw)
+        body, toc = render_markdown(content)
     elif file_path.suffix == ".ipynb":
         nb = nbformat.read(file_path, as_version=4)
         html_exporter = HTMLExporter()
         body, _ = html_exporter.from_notebook_node(nb)
         toc = ""
+        tags = []
+        category = ""
     else:
         raise HTTPException(status_code=400, detail="Unsupported file type")
 
-    return templates.TemplateResponse("post.html", {"request": request, "content": body, "toc": toc})
+    return templates.TemplateResponse(
+        "post.html",
+        {
+            "request": request,
+            "content": body,
+            "toc": toc,
+            "tags": tags,
+            "category": category,
+        },
+    )
 
 
 @app.get("/admin/login", response_class=HTMLResponse)
@@ -113,10 +141,15 @@ async def admin_upload_post(
 async def admin_posts(request: Request):
     if not request.session.get("user"):
         return RedirectResponse(url="/admin/login", status_code=302)
-    drafts = [p.name for p in DRAFTS_DIR.glob("*.md")] if DRAFTS_DIR.exists() else []
-    published = [
-        p.name for p in POSTS_DIR.glob("*.md")
-    ] + [p.name for p in POSTS_DIR.glob("*.ipynb")]
+    def meta(path: Path) -> dict:
+        raw = path.read_text(encoding="utf-8")
+        _, tags, category = parse_metadata(raw)
+        return {"name": path.name, "tags": ", ".join(tags), "category": category}
+
+    drafts = [meta(p) for p in DRAFTS_DIR.glob("*.md")] if DRAFTS_DIR.exists() else []
+    published = [meta(p) for p in POSTS_DIR.glob("*.md")] + [
+        {"name": p.name, "tags": "", "category": ""} for p in POSTS_DIR.glob("*.ipynb")
+    ]
     return templates.TemplateResponse(
         "admin_posts.html",
         {"request": request, "drafts": drafts, "published": published},
@@ -129,7 +162,14 @@ async def admin_new_post(request: Request):
         return RedirectResponse(url="/admin/login", status_code=302)
     return templates.TemplateResponse(
         "admin_edit.html",
-        {"request": request, "title": "", "content": "", "is_new": True},
+        {
+            "request": request,
+            "title": "",
+            "content": "",
+            "tags": "",
+            "category": "",
+            "is_new": True,
+        },
     )
 
 
@@ -138,15 +178,24 @@ async def admin_new_post_post(
     request: Request,
     title: str = Form(...),
     content: str = Form(...),
+    tags: str = Form(""),
+    category: str = Form(""),
     action: str = Form(...),
 ):
     if not request.session.get("user"):
         return RedirectResponse(url="/admin/login", status_code=302)
     if action == "preview":
         body, _ = render_markdown(content)
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
         return templates.TemplateResponse(
             "admin_preview.html",
-            {"request": request, "title": title, "content": body},
+            {
+                "request": request,
+                "title": title,
+                "content": body,
+                "tags": tag_list,
+                "category": category,
+            },
         )
     filename = f"{slugify(title)}.md"
     if action == "publish":
@@ -154,7 +203,13 @@ async def admin_new_post_post(
     else:
         path = DRAFTS_DIR / filename
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    header = []
+    if category:
+        header.append(f"Category: {category}")
+    if tags:
+        header.append(f"Tags: {tags}")
+    full = "\n".join(header + ["", content]) if header else content
+    path.write_text(full, encoding="utf-8")
     return RedirectResponse(url="/admin/posts", status_code=302)
 
 
@@ -166,7 +221,8 @@ async def admin_edit_post(request: Request, status: str, name: str):
     file_path = base / name
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Post not found")
-    content = file_path.read_text(encoding="utf-8")
+    raw = file_path.read_text(encoding="utf-8")
+    content, tags, category = parse_metadata(raw)
     title = name.rsplit(".", 1)[0].replace("-", " ")
     return templates.TemplateResponse(
         "admin_edit.html",
@@ -174,6 +230,8 @@ async def admin_edit_post(request: Request, status: str, name: str):
             "request": request,
             "title": title,
             "content": content,
+            "tags": ", ".join(tags),
+            "category": category,
             "is_new": False,
             "status": status,
             "name": name,
@@ -188,15 +246,24 @@ async def admin_edit_post_post(
     name: str,
     title: str = Form(...),
     content: str = Form(...),
+    tags: str = Form(""),
+    category: str = Form(""),
     action: str = Form(...),
 ):
     if not request.session.get("user"):
         return RedirectResponse(url="/admin/login", status_code=302)
     if action == "preview":
         body, _ = render_markdown(content)
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
         return templates.TemplateResponse(
             "admin_preview.html",
-            {"request": request, "title": title, "content": body},
+            {
+                "request": request,
+                "title": title,
+                "content": body,
+                "tags": tag_list,
+                "category": category,
+            },
         )
     new_filename = f"{slugify(title)}.md"
     if action == "publish":
@@ -204,7 +271,13 @@ async def admin_edit_post_post(
     else:
         path = DRAFTS_DIR / new_filename
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    header = []
+    if category:
+        header.append(f"Category: {category}")
+    if tags:
+        header.append(f"Tags: {tags}")
+    full = "\n".join(header + ["", content]) if header else content
+    path.write_text(full, encoding="utf-8")
     old_path = (DRAFTS_DIR if status == "draft" else POSTS_DIR) / name
     if old_path != path and old_path.exists():
         old_path.unlink()

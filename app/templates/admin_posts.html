@@ -5,8 +5,8 @@
 <h2>Drafts</h2>
 <ul>
 {% for p in drafts %}
-  <li>{{ p }} - <a href="/admin/posts/edit/draft/{{ p }}">Edit</a>
-      <form method="post" action="/admin/posts/delete/draft/{{ p }}" style="display:inline;">
+  <li>{{ p.name }}{% if p.category %} [{{ p.category }}]{% endif %}{% if p.tags %} - Tags: {{ p.tags }}{% endif %} - <a href="/admin/posts/edit/draft/{{ p.name }}">Edit</a>
+      <form method="post" action="/admin/posts/delete/draft/{{ p.name }}" style="display:inline;">
           <button type="submit">Delete</button>
       </form>
   </li>
@@ -17,8 +17,8 @@
 <h2>Published</h2>
 <ul>
 {% for p in published %}
-  <li>{{ p }} - <a href="/admin/posts/edit/published/{{ p }}">Edit</a> - <a href="/post/{{ p }}" target="_blank">View</a>
-      <form method="post" action="/admin/posts/delete/published/{{ p }}" style="display:inline;">
+  <li>{{ p.name }}{% if p.category %} [{{ p.category }}]{% endif %}{% if p.tags %} - Tags: {{ p.tags }}{% endif %} - <a href="/admin/posts/edit/published/{{ p.name }}">Edit</a> - <a href="/post/{{ p.name }}" target="_blank">View</a>
+      <form method="post" action="/admin/posts/delete/published/{{ p.name }}" style="display:inline;">
           <button type="submit">Delete</button>
       </form>
   </li>
